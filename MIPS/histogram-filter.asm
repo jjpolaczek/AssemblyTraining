@@ -1,6 +1,6 @@
 .data
 	input_file: .asciiz "lena.bmp"
-	output_file .asciiz "lena-out.bmp"
+	output_file: .asciiz "lena-out.bmp"
 	.align 2
 	buffer: .space 256
 	size: .space 4
@@ -8,9 +8,9 @@
 	height: .space 4
 	soffset: .space 4
 	colorBits: .space 4
-	hR: .word 256
-	hG: .word 256
-	hB: .word 256
+	hR: .space 1024
+	hG: .space 1024
+	hB: .space 1024
 .text
 #############################################################################
 #REGISTER DESCRIPRTION
@@ -148,7 +148,6 @@ histloop:
 	lbu $t5, 1($t0)
 	lbu $t6, 0($t0)
 	addiu $t0, $t0, 3
-	addi $t7, $t7, -1
 	#load and increment proper histogram word
 	#R
 	li $t9, 4
@@ -172,6 +171,7 @@ histloop:
 	addiu $t8, $t8, 1
 	sw $t8, 0 ($t9)	
 	
+	addi $t7, $t7, -1
 	bgtz $t7, histloop
 	#calculate cumulative sum
 ###############################################
@@ -183,18 +183,120 @@ histloop:
 # t5 - cum G
 # t6 - cum B
 # t7 - fields left
+# t8 - temporary
+# a0 - pixel count
+# a1 - minimum value R
+# a2 - minimum value G
+# a3 - minimum value B
 ###############################################
 	li $t7, 256
 	li $t4, 0
 	li $t5, 0
 	li $t6, 0
+#store minimum values for histogram channels
+	lw $a1, 0($t1)
+	lw $a2, 0($t2)
+	lw $a3, 0($t3)
+	mul $a0, $s2, $s3 # pixel count
+	addi $a0, $a0, -1
 cumloop:
+	#R
+	lw $t0, 0($t1) #load histogram value
+	addu $t4, $t4, $t0 # add to cumulative sum
+	#LUT calculation 
+	move $t8, $t4
+	sub $t8, $t8, $a1
+	mul $t8, $t8, 255
+	div $t8, $t8, $a0
+	sw $t8, 0($t1) #save in histogram place (LUT)
+	#G
+	lw $t0, 0($t2) #load histogram value
+	addu $t5, $t5, $t0 # add to cumulative sum
+	#LUT calculation 
+	move $t8, $t5
+	sub $t8, $t8, $a1
+	mul $t8, $t8, 255
+	div $t8, $t8, $a0
+	sw $t8, 0($t2) 
+	#B
+	lw $t0, 0($t3) #load histogram value
+	addu $t6, $t6, $t0 # add to cumulative sum
+	#LUT calculation 
+	move $t8, $t6
+	sub $t8, $t8, $a1
+	mul $t8, $t8, 255
+	div $t8, $t8, $a0
+	sw $t8, 0($t3) #save as cumulative sum in histogram place (LUT)
 	
-	addi $t7, -1
+	addi $t1, $t1, 4
+	addi $t2, $t2, 4
+	addi $t3, $t3, 4
+	addi $t7, $t7,-1
 	bgtz $t7, cumloop
 	
-	#transform image histogram
+#transform image
+##############################################################
+#transform loop registers:
+# t0 - current image memory adress
+# t1 - r chan LUT mem address
+# t2 - g chan LUT mem address
+# t3 - g chan LUT mem address
+# t4 - current pixel r
+# t5 - current pixel g
+# t6 - current pixel b
+# t7 - pixels left
+# t8 - temporary
+# t9 -tmp for address
+##############################################################
+	lw $t0, soffset
+	addu $t0, $t0, $s4 # start address of pixel array
+	la $t1, hR
+	la $t2, hG
+	la $t3, hB
+	mul $t7, $s2, $s3 # pixel count
+transloop:
+	#load pixel value
+	lbu $t4, 2($t0)
+	lbu $t5, 1($t0)
+	lbu $t6, 0($t0)
+	#search for lut entry
+	mul $t9, $t4, 4 # proper offset for intensity value
+	addu $t9, $t9, $t1 #address for channel R
+	lw $t4, 0($t9) #load new value
+	
+	mul $t9, $t5, 4 # proper offset for intensity value
+	addu $t9, $t9, $t2 #address for channel G
+	lw $t5, 0($t9) #load new value
+	
+	mul $t9, $t6, 4 # proper offset for intensity value
+	addu $t9, $t9, $t3 #address for channel B
+	lw $t6, 0($t9) #load new value
+	#store new values
+	sb $t4, 2($t0)
+	sb $t5, 1($t0)
+	sb $t6, 0($t0)
+	addiu $t0, $t0, 3
+	addi $t7, $t7,-1
+	bgtz $t7, transloop
 	#write output image
+		#open file
+	li $v0, 13 #call file open
+	la $a0, output_file #input file name
+	li $a1, 1 # open in writemode
+	li $a2, 0 #no special mode
+	syscall	
+	move $s0, $v0
+	
+	#read file into memory buffer
+	move $a0, $s0
+	move $a1, $s4
+	li $v0, 15
+	move $a2, $s1
+	syscall # dump buffer to file
+	#close the file
+	li $v0, 16
+	move $a0, $s0
+	syscall
 	
 exit:
 	li $a0, 0
