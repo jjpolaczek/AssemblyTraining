@@ -1,6 +1,6 @@
 .data
-	input_file: .asciiz "lena.bmp"
-	output_file: .asciiz "lena-out.bmp"
+	input_file: .asciiz "input.bmp"
+	output_file: .asciiz "input-out.bmp"
 	.align 2
 	buffer: .space 256
 	size: .space 4
