@@ -1,6 +1,9 @@
 .data
-	input_file: .asciiz "input.bmp"
+	input_file: .asciiz "lena.bmp"
 	output_file: .asciiz "input-out.bmp"
+	err_nofile: .asciiz "Error - no input file in working directory\r\n"
+	err_bmperr: .asciiz "Error - incompatible file format\r\n"
+	cmp_type: .ascii "BM"
 	.align 2
 	buffer: .space 256
 	size: .space 4
@@ -26,13 +29,39 @@
 	li $a1, 0 # open in readmode
 	li $a2, 0 #no special mode
 	syscall
+	bgtz $v0, fileok
+	#error - print error string and end program
+	la $a0, err_nofile
+	li $v0, 4
+	syscall
+	j errexit
+fileok:
 	move $s0, $v0 #save file descripter
 	# read bmp 16 byte header
 	move $a0, $s0
 	li $v0, 14
 	la $a1, buffer
 	li $a2, 2
-	syscall #read BM bytes -TODO - verify if BM type
+	syscall #read BM bytes
+	#verify if BM bytes
+	la $t1, buffer
+	la $t0, cmp_type
+	lb $t2, 0($t1)
+	lb $t3, 0($t0)
+	sub $t2, $t2, $t3  #B
+	bnez $t2, typeerr
+	lb $t2, 1($t1)
+	lb $t3, 1($t0)
+	sub $t2, $t2, $t3
+	bnez $t2, typeerr
+	j typeok
+typeerr:
+	#error - print error string and end program
+	la $a0, err_bmperr
+	li $v0, 4
+	syscall
+	j errexit
+typeok:
 	#BMP HEADER#
 	la $a1, size
 	li $v0, 14
@@ -297,12 +326,20 @@ transloop:
 	li $v0, 16
 	move $a0, $s0
 	syscall
+	#clear allocated memory for file
+#	sub $a0, $0, $s1 # negated file size
+#	li $v0, 9
+#	syscall # allocate file buffer
+#	move $s4, $0 # clear memory pointer to file buffer
 	
 exit:
 	li $a0, 0
 	li $v0, 17
 	syscall
-	
+errexit:
+	li $a0, 1
+	li $v0, 17
+	syscall
 clrBuf:
 	#a0 - buffAddr
 	#a1 - size of buffers
