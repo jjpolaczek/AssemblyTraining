@@ -1,5 +1,5 @@
 .data
-	input_file: .asciiz "lena.bmp"
+	input_file: .asciiz "field.bmp"
 	output_file: .asciiz "input-out.bmp"
 	err_nofile: .asciiz "Error - no input file in working directory\r\n"
 	err_bmperr: .asciiz "Error - incompatible file format\r\n"

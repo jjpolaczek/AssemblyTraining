@@ -4,7 +4,7 @@
 extern "C" {
 #endif
  char output_str[256];
- int histFilter(unsigned char *pixels, int size);
+ int histFilter(unsigned char *pixels, int size, int *debug);
 #ifdef __cplusplus
 }
 #endif
@@ -19,6 +19,63 @@ typedef struct Image
     int size;
     int offset;
 }Image;
+void hisCalc(Image img)
+{
+    int bufR[256], bufG[256],bufB[256];
+
+    int pixels = (img.size - img.offset) / 3;
+    for(int i = 0; i < 256; ++ i)
+    {
+        bufR[i] = 0;
+        bufG[i] = 0;
+        bufB[i] = 0;
+    }
+    int sanity = 0;
+    for(int i = 0; i < pixels * 3; i+=3)
+    {
+        ++sanity;
+        bufB[img.pixels[i]]++;
+        bufG[img.pixels[i+1]]++;
+        bufR[img.pixels[i+2]]++;
+    }
+    //Find nonzero//
+    /*
+    int rmin = 0, gmin = 0, bmin = 0;
+    for(int i = 0; i < 256; ++ i)
+    {
+        if(rmin ==0)
+            if(bufR[i] != 0)
+                rmin = bufR[i];
+        if(gmin ==0)
+            if(bufG[i] != 0)
+                rmin = bufG[i];
+        if(bmin ==0)
+            if(bufB[i] != 0)
+                rmin = bufB[i];
+    }*/
+    int cR =0, cG =0, cB = 0;
+    bufB[0] = 0;
+    bufG[0] = 0;
+    bufR[0] = 0;
+    printf("SIZE %d %d\n", pixels, img.width * img.height);
+    for(int i = 1; i < 256; ++ i)
+    {
+        cR += bufR[i];
+        cG += bufG[i];
+        cB += bufB[i];
+
+        bufR[i] = ((cR * 255) / pixels);
+        bufG[i] = ((cG * 255) / pixels);
+        bufB[i] = ((cB * 255) / pixels);
+    }
+    printf("This is buffer for bananas %d\n",cR);
+    for(int i = 0; i < 256; ++ i)
+    {
+         printf("%d ", (int) bufB[i]);
+    }
+    printf("\nThis is buffer for oranges\n");
+}
+
 Image loadImage(const char *filename)
 {
     Image img;
@@ -91,8 +148,15 @@ int main(int argc, char** argv)
 { 
   printf("Loading image: %s\n", argv[1]);
   Image img;
+  unsigned char buf[256];
+  int debug;
   img = loadImage(argv[1]);
-  histFilter(img.pixels,img.size);
+  hisCalc(img);
+  //histFilter(img.pixels,img.size, &debug);
+  histFilter(img.pixels,img.size - img.offset, (int*) buf);
+  //printf("%d ", debug);
+  for(int i = 0; i < 256; ++i)
+       printf("%d ", (int) buf[i]);
   saveImage("result.bmp", img);
   printf("Image dimensions: %d width %d height\n", img.width, img.height);
   deleteImage(img);
