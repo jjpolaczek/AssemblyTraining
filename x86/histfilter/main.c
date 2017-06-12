@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <SFML/Graphics.hpp>
 #ifdef __cplusplus
 extern "C" {
 #endif
  char output_str[256];
- int histFilter(unsigned char *pixels, int size, int *debug);
+ int histFilter(unsigned char *pixels, int size, int *debug, int contrast);
 #ifdef __cplusplus
 }
 #endif
@@ -38,26 +39,13 @@ void hisCalc(Image img)
         bufG[img.pixels[i+1]]++;
         bufR[img.pixels[i+2]]++;
     }
-    //Find nonzero//
-    /*
-    int rmin = 0, gmin = 0, bmin = 0;
-    for(int i = 0; i < 256; ++ i)
-    {
-        if(rmin ==0)
-            if(bufR[i] != 0)
-                rmin = bufR[i];
-        if(gmin ==0)
-            if(bufG[i] != 0)
-                rmin = bufG[i];
-        if(bmin ==0)
-            if(bufB[i] != 0)
-                rmin = bufB[i];
-    }*/
     int cR =0, cG =0, cB = 0;
     bufB[0] = 0;
     bufG[0] = 0;
     bufR[0] = 0;
     printf("SIZE %d %d\n", pixels, img.width * img.height);
+
+
     for(int i = 1; i < 256; ++ i)
     {
         cR += bufR[i];
@@ -119,8 +107,8 @@ Image loadImage(const char *filename)
         {
             fseek (f , img.offset - fpos , SEEK_CUR);
         }
-        img.pixels = malloc(3*(img.size - img.offset));
-        img.header = malloc(img.offset);
+        img.pixels = (unsigned char*)malloc(3*(img.size - img.offset));
+        img.header = (unsigned char*)malloc(img.offset);
         fread(img.pixels,sizeof(unsigned char),3 *(img.size - img.offset),f);
         rewind(f);
         fread(img.header,sizeof(unsigned char),img.offset,f);
@@ -144,21 +132,99 @@ void deleteImage(Image img)
     free(img.header);
 }
 
+void displayImage(sf::RenderWindow *window, Image &img)
+{
+
+}
+
 int main(int argc, char** argv)
 { 
+
   printf("Loading image: %s\n", argv[1]);
   Image img;
-  unsigned char buf[256];
+  int buf[256];
   int debug;
+  char contrast = 0;
   img = loadImage(argv[1]);
-  hisCalc(img);
+  if(img.valid == 0)
+  {
+      printf("Invalid image file specified: %s\n", argv[1]);
+      return 0;
+  }
+ sf::RenderWindow window(sf::VideoMode(img.width,img.height),"Filtration");
+
+//  hisCalc(img);
   //histFilter(img.pixels,img.size, &debug);
-  histFilter(img.pixels,img.size - img.offset, (int*) buf);
+  histFilter(img.pixels,img.size - img.offset, (int*) buf, 0);
   //printf("%d ", debug);
   for(int i = 0; i < 256; ++i)
        printf("%d ", (int) buf[i]);
-  saveImage("result.bmp", img);
-  printf("Image dimensions: %d width %d height\n", img.width, img.height);
+  saveImage("resulthf.bmp", img);
+//  printf("\nImage dimensions: %d width %d height\n", img.width, img.height);
   deleteImage(img);
+
+  sf::Texture origImage, hfImage, cImage;
+  if(!origImage.loadFromFile(argv[1]))
+  {
+      return 1;
+  }
+  if(!hfImage.loadFromFile("resulthf.bmp"))
+  {
+      return 1;
+  }
+  sf::Sprite background(origImage);
+  bool isPressed = false;
+  while (window.isOpen())
+  {
+      sf::Event event;
+      while (window.pollEvent(event))
+      {
+          if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+          {
+              background = sf::Sprite(hfImage);
+              printf("Hello?");
+          }
+          else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up) && !isPressed)
+          {
+              isPressed = true;
+              Image tmpimg;
+              tmpimg = loadImage(argv[1]);
+              histFilter(tmpimg.pixels,tmpimg.size - tmpimg.offset, (int*) buf, (int) ++contrast);
+
+              saveImage("resultcnt.bmp", tmpimg);
+              deleteImage(tmpimg);
+              if(!cImage.loadFromFile("resultcnt.bmp"))
+              {
+                  return 1;
+              }
+              background = sf::Sprite(cImage);
+          }
+          else if(sf::Keyboard::isKeyPressed(sf::Keyboard::Down) && !isPressed)
+          {
+              isPressed = true;
+              Image tmpimg;
+              tmpimg = loadImage(argv[1]);
+              histFilter(tmpimg.pixels,tmpimg.size - tmpimg.offset, (int*) buf, (int) --contrast);
+
+              saveImage("resultcnt.bmp", tmpimg);
+              deleteImage(tmpimg);
+              if(!cImage.loadFromFile("resultcnt.bmp"))
+              {
+                  return 1;
+              }
+              background = sf::Sprite(cImage);
+          }
+          else
+          {
+              isPressed = false;
+              background = sf::Sprite(origImage);
+          }
+          if (event.type == sf::Event::Closed)
+              window.close();
+      }
+      window.clear(sf::Color::White);
+      window.draw(background);
+      window.display();
+  }
   return 0;
 }
